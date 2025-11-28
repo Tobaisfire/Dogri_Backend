@@ -1,3 +1,0 @@
-"""Dogri backend package."""
-
-
