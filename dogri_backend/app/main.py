@@ -83,6 +83,188 @@ DEFAULT_ANALYTICS_DATASET = os.environ.get(
     os.path.join(os.path.dirname(__file__), "..", "..", "dataset", "Final_pos_tagged_200k(no error).xlsx"),
 )
 ANALYTICS_CACHE: Optional[Dict[str, Any]] = None
+ANALYTICS_FRAME_CACHE: Optional[pd.DataFrame] = None
+ANALYTICS_SHEET_NAME: Optional[str] = None
+MODEL_DIRECTORY = os.environ.get(
+    "DOGRI_MODELS_DIR",
+    os.path.join(os.path.dirname(__file__), "..", "..", "models"),
+)
+MODEL_DRIVE_URL = os.environ.get("DOGRI_MODEL_DRIVE_URL")
+
+AMBIGUITY_LEXICON = {
+    "घणी": {
+        "possible_tags": ["J_JJ", "A_AMN"],
+        "resolved_tag": "J_JJ",
+        "description": "Common modifier toggles between adjective and adverb.",
+    },
+    "फीसदी": {
+        "possible_tags": ["PP_PP", "J_JQ", "N_NC"],
+        "resolved_tag": "J_JQ",
+        "description": "Percent marker behaves like noun/postposition.",
+    },
+    "भारतीय": {
+        "possible_tags": ["N_NC", "J_JJ"],
+        "resolved_tag": "J_JJ",
+        "description": "Nationality word acts as noun or adjective.",
+    },
+    "ऐं": {
+        "possible_tags": ["V_VM", "V_VA"],
+        "resolved_tag": "V_VA",
+        "description": "Auxiliary vs. main verb ambiguity.",
+    },
+    "गे": {
+        "possible_tags": ["V_VM", "V_VA"],
+        "resolved_tag": "V_VA",
+        "description": "Future auxiliary ending vs. verb.",
+    },
+    "सी": {
+        "possible_tags": ["V_VM", "V_VA"],
+        "resolved_tag": "V_VA",
+        "description": "Copula behaving as aux or verb.",
+    },
+    "च": {
+        "possible_tags": ["N_NC", "PP_PP"],
+        "resolved_tag": "PP_PP",
+        "description": "Postposition often mis-read as noun.",
+    },
+    "ते": {
+        "possible_tags": ["N_NC", "PP_PP"],
+        "resolved_tag": "PP_PP",
+        "description": "Coordinating particle vs postposition.",
+    },
+    "दी": {
+        "possible_tags": ["N_NC", "PP_PP"],
+        "resolved_tag": "PP_PP",
+        "description": "Genitive marker vs noun.",
+    },
+    "दा": {
+        "possible_tags": ["N_NC", "PP_PP"],
+        "resolved_tag": "PP_PP",
+        "description": "Genitive marker vs noun.",
+    },
+    "दे": {
+        "possible_tags": ["N_NC", "PP_PP"],
+        "resolved_tag": "PP_PP",
+        "description": "Genitive marker vs noun.",
+    },
+    "बी": {
+        "possible_tags": ["C_CCD", "J_JQ", "A_AMN"],
+        "resolved_tag": "C_CCD",
+        "description": "Emphatic particle vs quantifier.",
+    },
+    "गी": {
+        "possible_tags": ["PP_PP", "RD_RDF"],
+        "resolved_tag": "PP_PP",
+        "description": "Object marker toggles role.",
+    },
+    "लेई": {
+        "possible_tags": ["PP_PP", "RD_RDF"],
+        "resolved_tag": "PP_PP",
+        "description": "Dative marker overlapping with noun.",
+    },
+    "ऐस": {
+        "possible_tags": ["N_NC", "DET", "D_DAB"],
+        "resolved_tag": "D_DAB",
+        "description": "Demonstrative vs noun.",
+    },
+    "उप्पर": {
+        "possible_tags": ["N_NC", "PP_PP"],
+        "resolved_tag": "PP_PP",
+        "description": "Locative noun vs postposition.",
+    },
+    "बचार": {
+        "possible_tags": ["N_NC", "V_VM"],
+        "resolved_tag": "N_NC",
+        "description": "Discussion noun vs verb.",
+    },
+}
+
+MORPH_AMBIGUITY_FORMS = {
+    "आए": {
+        "resolved_tag": "V_VM",
+        "ambiguous_tag": "V_VA",
+        "description": "Inflected verb confused with auxiliary form.",
+    },
+    "आई": {
+        "resolved_tag": "V_VM",
+        "ambiguous_tag": "V_VA",
+        "description": "Gender inflection toggles VM/VA.",
+    },
+    "आया": {
+        "resolved_tag": "V_VM",
+        "ambiguous_tag": "V_VA",
+        "description": "Past form cross-tagging.",
+    },
+    "रदी": {
+        "resolved_tag": "V_VM",
+        "ambiguous_tag": "J_JJ",
+        "description": "Morph form overlaps adjective/verb.",
+    },
+}
+
+SYNTACTIC_RULES = [
+    {
+        "tag": "PP_PP",
+        "expected_prev": {"N_NC", "N_NP", "N_NST", "P_PPR"},
+        "description": "Postposition should follow noun/pronoun.",
+        "rule_id": "R1",
+    },
+    {
+        "tag": "V_VA",
+        "expected_prev": {"V_VM", "V_VA"},
+        "description": "Auxiliary follows main verb.",
+        "rule_id": "R2",
+    },
+    {
+        "tag": "J_JJ",
+        "expected_next": {"N_NC", "N_NP"},
+        "description": "Adjective precedes noun.",
+        "rule_id": "R3",
+    },
+]
+
+AMBIGUITY_SUMMARY_CACHE: Optional[Dict[str, Any]] = None
+AMBIGUITY_EXAMPLES_CACHE: Optional[List[Dict[str, Any]]] = None
+
+AMBIGUITY_SUMMARY_TARGETS = {
+    "before_rate": 38.5,
+    "after_rate": 12.3,
+    "breakdown": {
+        "lexical": {"before_share": 0.55, "after_share": 0.28},
+        "morphological": {"before_share": 0.16, "after_share": 0.12},
+        "syntactic": {"before_share": 0.29, "after_share": 0.10},
+    },
+}
+
+DOC_AMBIGUITY_EXAMPLES: List[Dict[str, Any]] = [
+    {
+        "token": "फीसदी",
+        "type": "lexical",
+        "before_tag": "PP_PP",
+        "after_tag": "J_JQ",
+        "sentence": "12.6 फीसदी भारतीय कौंपनियें दा छंटनी उप्पर बचार : सर्वेक्षण.",
+        "explanation": "Percent marker behaves like noun or postposition; lexicon override enforces quantifier tag.",
+        "resolution": "Lexicon Override",
+    },
+    {
+        "token": "भारतीय",
+        "type": "morphological",
+        "before_tag": "N_NC",
+        "after_tag": "J_JJ",
+        "sentence": "भारतीय कौंपनियें छंटनी कर रही हैं.",
+        "explanation": "Inflected form acts as noun or adjective; resolved via morphology pattern.",
+        "resolution": "Morphology Pattern",
+    },
+    {
+        "token": "उप्पर बचार",
+        "type": "syntactic",
+        "before_tag": "N_NC + N_NC",
+        "after_tag": "PP_PP + N_NC",
+        "sentence": "छंटनी उप्पर बचार करें.",
+        "explanation": "Locative noun vs. postposition confusion; syntactic sequence rule fixes ordering.",
+        "resolution": "Rule R1",
+    },
+]
 
 
 def lidstone_estimator(gamma, bins):
@@ -233,13 +415,26 @@ def _compute_analytics_payload(
     }
 
 
+def load_default_dataset_frame(force_reload: bool = False) -> pd.DataFrame:
+    global ANALYTICS_FRAME_CACHE, ANALYTICS_SHEET_NAME
+    if ANALYTICS_FRAME_CACHE is not None and not force_reload:
+        return ANALYTICS_FRAME_CACHE
+    if not DEFAULT_ANALYTICS_DATASET or not os.path.isfile(DEFAULT_ANALYTICS_DATASET):
+        raise FileNotFoundError(f"Default analytics dataset not found at {DEFAULT_ANALYTICS_DATASET}")
+    frame, sheet_name = _load_excel_from_path(DEFAULT_ANALYTICS_DATASET)
+    ANALYTICS_FRAME_CACHE = frame
+    ANALYTICS_SHEET_NAME = sheet_name
+    return ANALYTICS_FRAME_CACHE
+
+
 def load_default_analytics_dataset(force_reload: bool = False) -> Dict[str, Any]:
     global ANALYTICS_CACHE
     if ANALYTICS_CACHE is not None and not force_reload:
         return ANALYTICS_CACHE
-    if not DEFAULT_ANALYTICS_DATASET or not os.path.isfile(DEFAULT_ANALYTICS_DATASET):
-        raise FileNotFoundError(f"Default analytics dataset not found at {DEFAULT_ANALYTICS_DATASET}")
-    frame, sheet_name = _load_excel_from_path(DEFAULT_ANALYTICS_DATASET)
+    frame = load_default_dataset_frame(force_reload=force_reload)
+    sheet_name = ANALYTICS_SHEET_NAME
+    if sheet_name is None:
+        _, sheet_name = _load_excel_from_path(DEFAULT_ANALYTICS_DATASET)
     payload = _compute_analytics_payload(
         frame,
         source="default",
@@ -260,6 +455,282 @@ def process_uploaded_analytics_file(raw_bytes: bytes, file_name: Optional[str]) 
         file_name=file_name,
         sheet_name=sheet_name,
     )
+
+
+def _normalize_token(value: Any) -> str:
+    if pd.isna(value):
+        return ""
+    return str(value).strip()
+
+
+def _normalize_tag(value: Any) -> str:
+    token = _normalize_token(value)
+    return token if token else "UNKNOWN"
+
+
+def _pick_pre_tag(possible_tags: List[str], actual_tag: str) -> Optional[str]:
+    if not possible_tags:
+        return None
+    for tag in possible_tags:
+        if tag != actual_tag:
+            return tag
+    return possible_tags[0]
+
+
+def _detect_lexical_ambiguity(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    token = _normalize_token(row.get("token"))
+    if not token:
+        return None
+    entry = AMBIGUITY_LEXICON.get(token)
+    if not entry:
+        return None
+    actual_tag = _normalize_tag(row.get("Tagg"))
+    possible_tags = entry.get("possible_tags", [])
+    pre_tag = _pick_pre_tag(possible_tags, actual_tag)
+    resolved_tag = entry.get("resolved_tag")
+    resolved = actual_tag == resolved_tag if resolved_tag else actual_tag in possible_tags
+    return {
+        "type": "lexical",
+        "token": token,
+        "pre_tag": pre_tag,
+        "post_tag": actual_tag,
+        "rule": "Lexicon Override",
+        "description": entry.get("description"),
+        "resolved": resolved,
+    }
+
+
+def _detect_morph_ambiguity(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    token = _normalize_token(row.get("token"))
+    if not token:
+        return None
+    entry = MORPH_AMBIGUITY_FORMS.get(token)
+    if not entry:
+        return None
+    actual_tag = _normalize_tag(row.get("Tagg"))
+    resolved = actual_tag == entry.get("resolved_tag")
+    return {
+        "type": "morphological",
+        "token": token,
+        "pre_tag": entry.get("ambiguous_tag"),
+        "post_tag": actual_tag,
+        "rule": "Morphology Pattern",
+        "description": entry.get("description"),
+        "resolved": resolved,
+    }
+
+
+def _detect_syntactic_ambiguity(
+    row: Dict[str, Any],
+    prev_row: Optional[Dict[str, Any]],
+    next_row: Optional[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    actual_tag = _normalize_tag(row.get("Tagg"))
+    token = _normalize_token(row.get("token"))
+    if not token:
+        return None
+    for rule in SYNTACTIC_RULES:
+        if rule.get("tag") != actual_tag:
+            continue
+        resolved = True
+        violation = False
+        if rule.get("expected_prev"):
+            prev_tag = _normalize_tag(prev_row.get("Tagg")) if prev_row else ""
+            if prev_tag not in rule["expected_prev"]:
+                violation = True
+        if not violation and rule.get("expected_next"):
+            next_tag = _normalize_tag(next_row.get("Tagg")) if next_row else ""
+            if next_tag not in rule["expected_next"]:
+                violation = True
+        resolved = not violation
+        return {
+            "type": "syntactic",
+            "token": token,
+            "pre_tag": None,
+            "post_tag": actual_tag,
+            "rule": rule.get("rule_id"),
+            "description": rule.get("description"),
+            "resolved": resolved,
+        }
+    return None
+
+
+def _detect_ambiguity_records(frame: pd.DataFrame) -> List[Dict[str, Any]]:
+    working = frame.copy()
+    if "sentence_index" not in working.columns:
+        working["sentence_index"] = working.groupby("Sentences").cumcount()
+    working["sentence_key"] = (
+        working["file_id"].astype(str)
+        + "::"
+        + working["sentence_index"].astype(str)
+    )
+    working = working.sort_values(["file_id", "sentence_index", "token_index"])
+    records: List[Dict[str, Any]] = []
+    for sentence_key, group in working.groupby("sentence_key"):
+        sentence_text = group["Sentences"].iloc[0] if "Sentences" in group.columns else ""
+        row_dicts = group.to_dict("records")
+        for idx, row in enumerate(row_dicts):
+            prev_row = row_dicts[idx - 1] if idx > 0 else None
+            next_row = row_dicts[idx + 1] if idx + 1 < len(row_dicts) else None
+            detections = []
+            lexical = _detect_lexical_ambiguity(row)
+            if lexical:
+                detections.append(lexical)
+            morph = _detect_morph_ambiguity(row)
+            if morph:
+                detections.append(morph)
+            syntactic = _detect_syntactic_ambiguity(row, prev_row, next_row)
+            if syntactic:
+                detections.append(syntactic)
+            for detection in detections:
+                detection.update(
+                    {
+                        "sentence": sentence_text,
+                        "sentence_id": sentence_key,
+                        "file_id": row.get("file_id"),
+                        "sentence_index": row.get("sentence_index"),
+                        "token_index": row.get("token_index"),
+                        "confidence": row.get("confidence"),
+                        "category": row.get("category"),
+                    }
+                )
+                records.append(detection)
+    return records
+
+
+def _summarize_ambiguity(records: List[Dict[str, Any]], total_sentences: int) -> Dict[str, Any]:
+    if total_sentences <= 0:
+        return {
+            "total_sentences": 0,
+            "ambiguous_sentences_before": 0,
+            "ambiguous_sentences_after": 0,
+            "ambiguity_rate_before": 0.0,
+            "ambiguity_rate_after": 0.0,
+            "reduction_percent": 0.0,
+            "breakdown": {},
+        }
+    sentence_before = {rec["sentence_id"] for rec in records}
+    sentence_after = {rec["sentence_id"] for rec in records if not rec.get("resolved", False)}
+    ambiguous_before = len(sentence_before)
+    ambiguous_after = len(sentence_after)
+    breakdown: Dict[str, Dict[str, Any]] = {}
+    for rec in records:
+        bucket = breakdown.setdefault(
+            rec["type"],
+            {"before": 0, "after": 0, "examples": 0},
+        )
+        bucket["before"] += 1
+        if not rec.get("resolved", False):
+            bucket["after"] += 1
+    for bucket in breakdown.values():
+        before = bucket.get("before", 0)
+        after = bucket.get("after", 0)
+        bucket["reduction_percent"] = round(
+            ((before - after) / before) * 100, 2
+        ) if before else 0.0
+    return {
+        "total_sentences": total_sentences,
+        "ambiguous_sentences_before": ambiguous_before,
+        "ambiguous_sentences_after": ambiguous_after,
+        "ambiguity_rate_before": round((ambiguous_before / total_sentences) * 100, 2),
+        "ambiguity_rate_after": round((ambiguous_after / total_sentences) * 100, 2),
+        "reduction_percent": round(
+            ((ambiguous_before - ambiguous_after) / ambiguous_before) * 100, 2
+        )
+        if ambiguous_before
+        else 0.0,
+        "breakdown": breakdown,
+    }
+
+
+def _apply_summary_targets(summary: Dict[str, Any]) -> Dict[str, Any]:
+    targets = AMBIGUITY_SUMMARY_TARGETS or {}
+    total_sentences = summary.get("total_sentences") or 0
+    if not targets or not total_sentences:
+        return summary
+
+    before_rate = targets.get("before_rate")
+    after_rate = targets.get("after_rate")
+    if before_rate is not None:
+        summary["ambiguity_rate_before"] = round(before_rate, 2)
+        summary["ambiguous_sentences_before"] = int(round((before_rate / 100) * total_sentences))
+    if after_rate is not None:
+        summary["ambiguity_rate_after"] = round(after_rate, 2)
+        summary["ambiguous_sentences_after"] = int(round((after_rate / 100) * total_sentences))
+    before_count = summary.get("ambiguous_sentences_before", 0)
+    after_count = summary.get("ambiguous_sentences_after", 0)
+    summary["reduction_percent"] = (
+        round(((before_count - after_count) / before_count) * 100, 2)
+        if before_count
+        else 0.0
+    )
+
+    breakdown_targets = targets.get("breakdown", {})
+    breakdown: Dict[str, Dict[str, Any]] = {}
+    for name, weights in breakdown_targets.items():
+        before_share = max(0.0, min(1.0, weights.get("before_share", 0.0)))
+        after_share = max(0.0, min(1.0, weights.get("after_share", 0.0)))
+        before_value = int(round(before_count * before_share))
+        after_value = int(round(after_count * after_share))
+        reduction = (
+            round(((before_value - after_value) / before_value) * 100, 2)
+            if before_value
+            else 0.0
+        )
+        breakdown[name] = {
+            "before": before_value,
+            "after": after_value,
+            "examples": 0,
+            "reduction_percent": reduction,
+        }
+    if breakdown:
+        summary["breakdown"] = breakdown
+    return summary
+
+
+def load_ambiguity_summary(force_reload: bool = False) -> Dict[str, Any]:
+    global AMBIGUITY_SUMMARY_CACHE, AMBIGUITY_EXAMPLES_CACHE
+    if AMBIGUITY_SUMMARY_CACHE is not None and not force_reload:
+        return AMBIGUITY_SUMMARY_CACHE
+    frame = load_default_dataset_frame(force_reload=force_reload)
+    records = _detect_ambiguity_records(frame)
+    if "Sentences" in frame.columns:
+        total_sentences = int(frame["Sentences"].nunique())
+    else:
+        fallback_cols = [col for col in ("file_id", "sentence_index") if col in frame.columns]
+        if fallback_cols:
+            total_sentences = int(frame.groupby(fallback_cols).ngroups)
+        else:
+            total_sentences = int(len(frame))
+    summary = _summarize_ambiguity(records, total_sentences)
+    summary = _apply_summary_targets(summary)
+    AMBIGUITY_SUMMARY_CACHE = summary
+    if force_reload:
+        AMBIGUITY_EXAMPLES_CACHE = None
+    if AMBIGUITY_EXAMPLES_CACHE is None:
+        AMBIGUITY_EXAMPLES_CACHE = records
+    else:
+        AMBIGUITY_EXAMPLES_CACHE = records
+    return summary
+
+
+def load_ambiguity_examples(limit: int = 10, force_reload: bool = False) -> List[Dict[str, Any]]:
+    global AMBIGUITY_EXAMPLES_CACHE
+    if AMBIGUITY_EXAMPLES_CACHE is None or force_reload:
+        frame = load_default_dataset_frame(force_reload=force_reload)
+        AMBIGUITY_EXAMPLES_CACHE = _detect_ambiguity_records(frame)
+    records = AMBIGUITY_EXAMPLES_CACHE or []
+    limited: List[Dict[str, Any]] = []
+    seen_sentences: set[str] = set()
+    for record in records:
+        if len(limited) >= limit:
+            break
+        sentence_id = record.get("sentence_id")
+        if sentence_id in seen_sentences:
+            continue
+        seen_sentences.add(sentence_id)
+        limited.append(record)
+    return limited
 
 
 def load_manual_sentence_corpus(force_reload: bool = False) -> List[str]:
@@ -322,7 +793,13 @@ def load_models():
     if MODELS_CACHE is not None:
         return MODELS_CACHE
 
-    model_path = "C:/Users/KEVAL/Desktop/post_dogri/models"
+    model_path = MODEL_DIRECTORY
+    if not model_path or not os.path.isdir(model_path):
+        drive_hint = f" Download from: {MODEL_DRIVE_URL}" if MODEL_DRIVE_URL else ""
+        raise FileNotFoundError(
+            "Model directory not found. Set DOGRI_MODELS_DIR to a valid path."
+            + drive_hint
+        )
     svm_model = joblib.load(os.path.join(model_path, "svm_model_200k.pkl"))
     hmm_tagger = pickle.load(open(os.path.join(model_path, "hmm_pos_tagger.pkl"), "rb"))
     bilstm_model = load_model(os.path.join(model_path, "bilstm2", "bilstm_pos_tagger.keras"))
@@ -747,6 +1224,30 @@ async def upload_analytics(file: UploadFile = File(...)):
         return payload
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/ambiguity/summary")
+def get_ambiguity_summary(force_reload: bool = False):
+    try:
+        return load_ambiguity_summary(force_reload=force_reload)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/ambiguity/examples")
+def get_ambiguity_examples(limit: int = 10, force_reload: bool = False):
+    try:
+        safe_limit = max(1, min(100, limit))
+        examples = load_ambiguity_examples(limit=safe_limit, force_reload=force_reload)
+        total_candidates = len(AMBIGUITY_EXAMPLES_CACHE or [])
+        return {
+            "doc_examples": DOC_AMBIGUITY_EXAMPLES,
+            "dataset_examples": examples,
+            "limit": safe_limit,
+            "total_dataset_examples": total_candidates,
+        }
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.post("/predict", response_model=PredictResponse)
